@@ -23,6 +23,7 @@ from . import (
     trace,  # noqa: F401 (import has side effects for trace level setup)
 )
 from .constants import NO_COLOR, package_logger
+from .env import get_env
 from .environments import is_pytest
 from .factory import get_logger_factory
 from .levels import get_environment_log_level_as_string
@@ -89,6 +90,9 @@ def get_default_processors(json_logger: bool) -> list[structlog.types.Processor]
 
     This includes any "final" processors to render the log as json or not.
     """
+    log_event_renamer = get_env("LOG_EVENT_RENAMER")
+    log_timestamp_key = get_env("LOG_TIMESTAMP_KEY", "timestamp") or "timestamp"
+
     processors = [
         # although this is stdlib, it's needed, although I'm not sure entirely why
         structlog.stdlib.add_log_level,
@@ -100,7 +104,10 @@ def get_default_processors(json_logger: bool) -> list[structlog.types.Processor]
         else None,
         PathPrettifier(),
         WheneverFormatter() if packages.whenever else None,
-        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        structlog.processors.TimeStamper(fmt="iso", utc=True, key=log_timestamp_key),
+        structlog.processors.EventRenamer("_msg", log_event_renamer)
+        if log_event_renamer
+        else None,
         # add `stack_info=True` to a log and get a `stack` attached to the log
         structlog.processors.StackInfoRenderer(),
         *log_processors_for_mode(json_logger),
